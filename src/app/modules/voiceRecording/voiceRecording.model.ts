@@ -43,8 +43,8 @@ const VoiceRecordingSchema: Schema = new Schema(
       nicknameForLovedOne: { type: String, required: true },
       customQuestions: [
         {
-          question: { type: String, required: true },
-          answer: { type: String, required: true },
+          question: { type: String },
+          answer: { type: String },
         },
       ],
     },

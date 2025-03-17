@@ -18,8 +18,7 @@ interface Params {
 // Initialize Free Subscription
 router.post('/initialize', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.user?._id; // Extract userId from the authenticated user
-
+    const userId = req.user?._id;
     if (!userId) {
       res.status(401).json({ success: false, message: 'Unauthorized: Missing user ID.' });
       return;
@@ -52,7 +51,7 @@ router.post('/initialize', authenticate, async (req: Request, res: Response): Pr
       package: freePackage._id,
       startDate,
       endDate,
-      trialActive: false
+      trialActive: false,
     });
 
     await subscription.save();
@@ -94,7 +93,7 @@ router.post('/stripe-session', authenticate, async (req: Request, res: Response)
       payment_method_types: ['card'],
       line_items: [
         {
-          price: selectedPackage.stripePriceId, // ✅ Using Stripe's predefined Price ID
+          price: selectedPackage.stripePriceId,
           quantity: 1,
         },
       ],
@@ -114,7 +113,6 @@ router.post('/stripe-session', authenticate, async (req: Request, res: Response)
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
 
 // Stripe success handler
 router.get('/stripe-success', async (req: Request, res: Response): Promise<void> => {
@@ -156,7 +154,6 @@ router.get('/stripe-success', async (req: Request, res: Response): Promise<void>
     const endDate = new Date();
     endDate.setMonth(startDate.getMonth() + (selectedPackage.subscriptionType === 'Yearly' ? 12 : 1));
 
-    // Set trialActive based on Stripe's subscription status
     const isTrialActive = stripeSubscription.status === 'trialing';
 
     await Subscription.findOneAndUpdate(
@@ -166,7 +163,7 @@ router.get('/stripe-success', async (req: Request, res: Response): Promise<void>
         package: selectedPackage._id,
         startDate,
         endDate,
-        trialActive: isTrialActive, // Use Stripe's status to determine trial
+        trialActive: isTrialActive,
         stripeSubscriptionId,
       },
       { upsert: true, new: true }
@@ -179,34 +176,69 @@ router.get('/stripe-success', async (req: Request, res: Response): Promise<void>
   }
 });
 
-
-// Cancel subscription during trial
+// Cancel subscription
 router.post('/cancel', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
+    console.log('Step 1: Starting /cancel route');
     const userId = req.user?.id;
+    console.log('Step 2: Extracted userId:', userId);
     if (!userId) {
+      console.log('Step 3: No userId found, returning 401');
       res.status(401).json({ success: false, message: 'Unauthorized: No user ID.' });
       return;
     }
 
+    console.log('Step 4: Querying subscription for userId:', userId);
     const subscription = await Subscription.findOne({ user: userId }).populate('package') as ISubscription & { _id: string };
+    console.log('Step 5: Subscription found:', subscription);
     if (!subscription) {
+      console.log('Step 6: No subscription found, returning 404');
       res.status(404).json({ success: false, message: 'No active subscription found.' });
       return;
     }
 
+    console.log('Step 7: Checking stripeSubscriptionId:', subscription.stripeSubscriptionId);
     if (!subscription.stripeSubscriptionId) {
-      res.status(400).json({ success: false, message: 'No valid Stripe subscription found to cancel.' });
+      console.log('Step 8: No stripeSubscriptionId found, deleting subscription from database');
+      await Subscription.deleteOne({ user: userId });
+      console.log('Step 9: Subscription deleted from database');
+      res.status(200).json({ success: true, message: 'Subscription canceled successfully (no Stripe subscription associated).' });
       return;
     }
 
+    console.log('Step 9: Retrieving Stripe subscription for ID:', subscription.stripeSubscriptionId);
     const stripeSubscription = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+    console.log('Step 10: Stripe subscription retrieved:', stripeSubscription);
+    const selectedPackage = subscription.package as any;
+    console.log('Step 11: Selected package:', selectedPackage);
+
     if (stripeSubscription.status === 'trialing') {
+      console.log('Step 12: Subscription is in trialing status, canceling immediately');
       await stripe.subscriptions.cancel(subscription.stripeSubscriptionId);
+      console.log('Step 13: Stripe subscription canceled');
       await Subscription.deleteOne({ user: userId });
+      console.log('Step 14: Subscription deleted from database');
       res.status(200).json({ success: true, message: 'Trial subscription canceled successfully.' });
+    } else if (stripeSubscription.status === 'active') {
+      console.log('Step 12: Subscription is active, scheduling cancellation');
+      const updatedStripeSubscription = await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+        cancel_at_period_end: true,
+      });
+      console.log('Step 13: Stripe subscription updated to cancel at period end:', updatedStripeSubscription);
+
+      subscription.endDate = new Date(updatedStripeSubscription.current_period_end * 1000);
+      console.log('Step 14: Updated subscription endDate:', subscription.endDate);
+      await subscription.save();
+      console.log('Step 15: Subscription saved in database');
+
+      const period = selectedPackage.subscriptionType === 'Yearly' ? 'year' : 'month';
+      res.status(200).json({
+        success: true,
+        message: `Subscription will be deactivated at the end of the current ${period} on ${subscription.endDate.toISOString().split('T')[0]}.`,
+      });
     } else {
-      res.status(400).json({ success: false, message: 'Cannot cancel: Trial period has ended or subscription is active.' });
+      console.log('Step 12: Subscription is not in a valid state for cancellation:', stripeSubscription.status);
+      res.status(400).json({ success: false, message: 'Cannot cancel: Subscription is not in a valid state.' });
     }
   } catch (error: any) {
     console.error('Cancel error:', error.message);
@@ -214,7 +246,7 @@ router.post('/cancel', authenticate, async (req: Request, res: Response): Promis
   }
 });
 
-// Renew subscription (updated to reflect package type)
+// Renew subscription
 router.put('/renew', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;

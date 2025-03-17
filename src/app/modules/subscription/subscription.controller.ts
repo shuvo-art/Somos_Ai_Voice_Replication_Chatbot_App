@@ -57,12 +57,21 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req: R
       const dbSubscription = await Subscription.findOne({ stripeSubscriptionId: subscription.id });
       if (dbSubscription) {
         dbSubscription.trialActive = subscription.status === 'trialing';
+        if (subscription.cancel_at_period_end) {
+          dbSubscription.endDate = new Date(subscription.current_period_end * 1000);
+        }
         await dbSubscription.save();
+      }
+    } else if (event.type === 'customer.subscription.deleted') {
+      const subscription = event.data.object as Stripe.Subscription;
+      const dbSubscription = await Subscription.findOne({ stripeSubscriptionId: subscription.id });
+      if (dbSubscription) {
+        await Subscription.deleteOne({ stripeSubscriptionId: subscription.id });
       }
     } else if (event.type === 'invoice.payment_succeeded') {
       const invoice = event.data.object as Stripe.Invoice;
       const subscriptionId = invoice.subscription as string;
-      const amountPaid = invoice.amount_paid / 100; // Convert cents to dollars
+      const amountPaid = invoice.amount_paid / 100;
 
       const subscription = await Subscription.findOne({ stripeSubscriptionId: subscriptionId }).populate('package');
       if (subscription && subscription.trialActive) {
@@ -75,7 +84,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req: R
           endDate.setMonth(startDate.getMonth() + (selectedPackage.subscriptionType === 'Yearly' ? 12 : 1));
           subscription.startDate = startDate;
           subscription.endDate = endDate;
-          subscription.amountPaid = amountPaid; // Add this field to track payment
+          subscription.amountPaid = amountPaid;
           await subscription.save();
         }
       }

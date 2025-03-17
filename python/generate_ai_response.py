@@ -6,7 +6,12 @@ from elevenlabs.client import ElevenLabs
 api_key = "AIzaSyB01ouUyKFz7IGzCgEnBdHnEY9QRQXPfIQ"
 genai.configure(api_key=api_key)
 
-def generate_ai_response_and_convert_to_audio(user_input, cloned_voice_id, user_data, output_audio_path):
+def generate_ai_response_and_convert_to_audio(user_input, cloned_voice_id, user_data_file, output_audio_path):
+    # Read the user data from the file
+    with open(user_data_file, 'r') as f:
+        user_data = json.load(f)
+    print(f"Debug: Loaded user_data from file: {user_data}")
+
     prompt = f"""
 You are an AI assistant having a warm, caring, and supportive conversation with a user. The goal is to reply in a natural, loving tone, based on the context of the user's input, but without repeating what the user said.
 
@@ -40,13 +45,13 @@ Here is some information about the user:
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
-        print("Usage: python generate_ai_response.py <user_input> <cloned_voice_id> <user_data_json> <output_audio_path>")
+        print("Usage: python generate_ai_response.py <user_input> <cloned_voice_id> <user_data_file> <output_audio_path>")
         sys.exit(1)
 
     user_input = sys.argv[1]
     cloned_voice_id = sys.argv[2]
-    user_data = json.loads(sys.argv[3])
+    user_data_file = sys.argv[3]
     output_audio_path = sys.argv[4]
 
-    generated_audio_path = generate_ai_response_and_convert_to_audio(user_input, cloned_voice_id, user_data, output_audio_path)
+    generated_audio_path = generate_ai_response_and_convert_to_audio(user_input, cloned_voice_id, user_data_file, output_audio_path)
     print(f"Generated audio saved at: {generated_audio_path}")
