@@ -23,6 +23,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
       const packageDetails = subscription?.package as any;
       const amount = subscription?.amountPaid || (packageDetails ? packageDetails.amount / 100 : 0);
       return {
+        _id: typedUser._id.toString(),
         name: typedUser.name,
         email: typedUser.email,
         subscriptionType: packageDetails ? packageDetails.subscriptionType : 'None',
@@ -50,6 +51,8 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
 
     // Task 2: Monthly revenue and user growth (filterable by year)
     const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
+
+    // Monthly revenue aggregation
     const monthlyRevenue = await Subscription.aggregate([
       { $match: { startDate: { $gte: new Date(`${year}-01-01`), $lte: new Date(`${year}-12-31`) } } },
       {
@@ -78,6 +81,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
       { $sort: { '_id': 1 } },
     ]);
 
+    // Monthly user growth aggregation
     const monthlyUserGrowth = await User.aggregate([
       { $match: { createdAt: { $gte: new Date(`${year}-01-01`), $lte: new Date(`${year}-12-31`) } } },
       {
@@ -89,21 +93,47 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
       { $sort: { '_id': 1 } },
     ]);
 
+    // Transform revenue data to desired format
+    const monthNames = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+    const revenueChart: { [key: string]: number }[] = [{
+      January: 0, February: 0, March: 0, April: 0, May: 0, June: 0,
+      July: 0, August: 0, September: 0, October: 0, November: 0, December: 0
+    }];
+    monthlyRevenue.forEach((item) => {
+      const monthIndex = item._id - 1; // Convert 1-based month to 0-based index
+      if (monthIndex >= 0 && monthIndex < 12) {
+        revenueChart[0][monthNames[monthIndex]] = item.revenue || 0;
+      }
+    });
+
+    // Transform growth data to desired format
+    const growth: { [key: string]: number }[] = [{
+      January: 0, February: 0, March: 0, April: 0, May: 0, June: 0,
+      July: 0, August: 0, September: 0, October: 0, November: 0, December: 0
+    }];
+    monthlyUserGrowth.forEach((item) => {
+      const monthIndex = item._id - 1; // Convert 1-based month to 0-based index
+      if (monthIndex >= 0 && monthIndex < 12) {
+        growth[0][monthNames[monthIndex]] = item.count || 0;
+      }
+    });
+
     res.status(200).json({
       success: true,
       users: userData,
       totalRevenue: totalRevenue.toFixed(2),
       totalUsers,
       totalActiveUsers,
-      revenueChart: monthlyRevenue,
-      growth: monthlyUserGrowth,
+      revenueChart,
+      growth,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: (error as Error).message });
   }
 };
-
-// ... (rest of the controller remains unchanged)
 
 // Task 1: Suspend a user's subscription
 export const suspendUserSubscription = async (req: Request, res: Response): Promise<void> => {

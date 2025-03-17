@@ -4,6 +4,7 @@ dotenv.config();
 import express from 'express';
 import { createServer } from 'http';
 import mongoose from 'mongoose';
+import cors from 'cors';
 import { initializeSocketIO } from './socketIO';
 import appRoutes from './app/server';
 import subscriptionWebhook from './app/modules/subscription/subscription.controller';
@@ -12,8 +13,17 @@ const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 5001;
 
+// Enable CORS for all routes
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS || '*', // Allow specific origins or all origins ('*')
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Explicitly allow these HTTP methods
+  allowedHeaders: ['Content-Type', 'Authorization'], // Allow these headers
+  credentials: true, // Allow cookies and auth headers if needed
+}));
+
 // Use raw middleware only for the Stripe webhook
 app.use('/api/subscription/stripe', express.raw({ type: 'application/json' }), subscriptionWebhook);
+
 
 // Apply JSON parsing globally for other routes
 app.use(express.json());
