@@ -35,6 +35,8 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
             : 'Expired'
           : 'None',
         amount: `$${amount.toFixed(2)}`,
+        startDate: subscription ? subscription.startDate.toISOString() : null, // Add startDate
+        endDate: subscription ? subscription.endDate.toISOString() : null, // Add endDate
       };
     });
 

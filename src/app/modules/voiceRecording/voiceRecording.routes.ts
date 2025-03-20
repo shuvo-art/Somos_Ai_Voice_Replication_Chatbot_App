@@ -10,7 +10,7 @@ import fs from 'fs';
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
-// Task 1: Get all recorded voices for the home page
+// Task 1: Get all recorded voices for the home page with a configurable limit
 router.get('/recordings', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
@@ -19,7 +19,20 @@ router.get('/recordings', authenticate, async (req: Request, res: Response): Pro
       return;
     }
 
-    const recordings = await VoiceRecording.find({ user: userId });
+    const limitParam = req.query.limit as string;
+    let limit = 5;
+    if (limitParam) {
+      const parsedLimit = parseInt(limitParam);
+      if (!isNaN(parsedLimit) && parsedLimit > 0) {
+        limit = parsedLimit;
+      } else {
+        console.log('Step 4: Invalid limit provided, using default value of 5');
+        res.status(400).json({ success: false, message: 'Limit must be a positive integer' });
+        return;
+      }
+    }
+
+    const recordings = await VoiceRecording.find({ user: userId }).limit(limit);
     res.status(200).json({ success: true, recordings });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -44,7 +57,6 @@ router.post(
 
       const { title, relation, ...personalizationData } = req.body;
       console.log('Step 4: Extracted title, relation, and personalizationData:', { title, relation, personalizationData });
-      // Parse customQuestions if it's a string
       let parsedPersonalizationData = { ...personalizationData };
       if (personalizationData.customQuestions && typeof personalizationData.customQuestions === 'string') {
         try {
@@ -70,13 +82,11 @@ router.post(
         return;
       }
 
-      // Upload audio to Cloudinary
       console.log('Step 8: Uploading audio to Cloudinary:', files.audio[0].path);
       const audioResult = await uploadAudio(files.audio[0].path);
       const audioUrl = audioResult.secure_url;
       console.log('Step 9: Audio uploaded, URL:', audioUrl);
 
-      // Upload image to Cloudinary (optional)
       let imageUrl = '';
       if (files.image && files.image.length > 0) {
         console.log('Step 10: Uploading image to Cloudinary:', files.image[0].path);
@@ -85,14 +95,13 @@ router.post(
         console.log('Step 11: Image uploaded, URL:', imageUrl);
       }
 
-      // Call Python script to clone the voice
       const pythonScriptPath = path.join(__dirname, '../../../../python/audio_cloning.py');
-      const tempAudioPath = files.audio[0].path.replace(/\\/g, '/'); // Convert backslashes to forward slashes for compatibility
-      const cloneName = `${title}-${userId}`.replace(/ /g, '_'); // Replace spaces with underscores to avoid shell issues
+      const tempAudioPath = files.audio[0].path.replace(/\\/g, '/');
+      const cloneName = `${title}-${userId}`.replace(/ /g, '_');
       console.log('Step 12: Preparing to call Python script:', { pythonScriptPath, tempAudioPath, cloneName });
 
       const clonedVoiceId = await new Promise<string>((resolve, reject) => {
-        const command = `python -u "${pythonScriptPath}" "${tempAudioPath}" "${cloneName}"`; // Add -u to disable buffering
+        const command = `python -u "${pythonScriptPath}" "${tempAudioPath}" "${cloneName}"`;
         console.log('Step 12.5: Executing command:', command);
         exec(command, { shell: 'cmd.exe' }, (error, stdout, stderr) => {
           console.log('Step 13: Python script executed, stdout:', stdout);
@@ -116,7 +125,6 @@ router.post(
 
       console.log('Step 18: Cloned voice ID obtained:', clonedVoiceId);
 
-      // Clean up temporary files
       console.log('Step 19: Cleaning up temp audio file:', tempAudioPath);
       fs.unlinkSync(tempAudioPath);
       if (files.image) {
@@ -124,7 +132,6 @@ router.post(
         fs.unlinkSync(files.image[0].path);
       }
 
-      // Save the voice recording
       console.log('Step 21: Saving voice recording to database');
       const voiceRecording = new VoiceRecording({
         user: userId,
@@ -155,7 +162,7 @@ router.put(
     try {
       const userId = req.user?.id;
       const { recordingId } = req.params;
-      const { personalizationData } = req.body; // Extract personalizationData from the request body
+      const { personalizationData } = req.body;
 
       if (!userId) {
         res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -167,7 +174,6 @@ router.put(
         return;
       }
 
-      // Flatten the personalizationData object to update individual fields
       const updateFields: { [key: string]: any } = {};
       for (const key in personalizationData) {
         if (personalizationData.hasOwnProperty(key)) {
@@ -177,8 +183,8 @@ router.put(
 
       const voiceRecording = await VoiceRecording.findOneAndUpdate(
         { _id: recordingId, user: userId },
-        { $set: updateFields }, // Use $set to update only the provided fields
-        { new: true, runValidators: true } // Return the updated document and run schema validators
+        { $set: updateFields },
+        { new: true, runValidators: true }
       );
 
       if (!voiceRecording) {
@@ -220,12 +226,10 @@ router.post(
         return;
       }
 
-      // Create a temporary file for userData to avoid shell quoting issues
       const tempFilePath = path.join(__dirname, '../../../../uploads/temp_user_data.json');
       fs.writeFileSync(tempFilePath, JSON.stringify(voiceRecording.personalizationData));
       console.log('Step 4: Wrote userData to temporary file:', tempFilePath);
 
-      // Call Python script to generate AI response and audio
       const pythonScriptPath = path.join(__dirname, '../../../../python/generate_ai_response.py');
       const outputAudioPath = path.join(__dirname, '../../../../uploads/generated_audio.wav');
       const command = `python -u "${pythonScriptPath}" "${userInput}" ${voiceRecording.clonedVoiceId} "${tempFilePath}" "${outputAudioPath}"`;
@@ -243,10 +247,13 @@ router.post(
               reject(new Error(`AI response generation failed: ${stderr || error.message}`));
               return;
             }
-            const audioPath = stdout.split('Generated audio saved at: ')[1]?.trim();
-            console.log('Step 9: Extracted audioPath:', audioPath);
+            // Improved parsing logic to handle multiple lines
+            console.log('Step 9: Full stdout for debugging:', stdout);
+            const audioPathMatch = stdout.match(/Generated audio saved at: (.+)/);
+            const audioPath = audioPathMatch ? audioPathMatch[1].trim() : null;
+            console.log('Step 10: Extracted audioPath:', audioPath);
             if (!audioPath) {
-              console.log('Step 10: No audioPath extracted, rejecting promise');
+              console.log('Step 11: No audioPath extracted, rejecting promise. Full stdout:', stdout);
               reject(new Error('Failed to extract generated audio path'));
               return;
             }
@@ -255,20 +262,18 @@ router.post(
         );
       });
 
-      // Clean up the temporary file
       fs.unlinkSync(tempFilePath);
-      console.log('Step 11: Cleaned up temporary userData file');
+      console.log('Step 12: Cleaned up temporary userData file');
 
-      // Upload generated audio to Cloudinary
-      console.log('Step 12: Uploading generated audio to Cloudinary:', generatedAudioPath);
+      console.log('Step 13: Uploading generated audio to Cloudinary:', generatedAudioPath);
       const audioResult = await uploadAudio(generatedAudioPath);
-      console.log('Step 13: Audio uploaded, URL:', audioResult.secure_url);
+      console.log('Step 14: Audio uploaded, URL:', audioResult.secure_url);
       fs.unlinkSync(generatedAudioPath);
-      console.log('Step 14: Cleaned up temporary audio file');
+      console.log('Step 15: Cleaned up temporary audio file');
 
       res.status(200).json({ success: true, audioUrl: audioResult.secure_url });
     } catch (error: any) {
-      console.error('Step 15: Error in /talk-to-ai:', error.message);
+      console.error('Step 16: Error in /talk-to-ai:', error.message);
       res.status(500).json({ success: false, message: error.message });
     }
   }

@@ -50,3 +50,4 @@ typing_extensions==4.12.2
 uritemplate==4.1.1
 urllib3==2.3.0
 websockets==15.0
+python-dotenv==1.0.1  # Add this line
