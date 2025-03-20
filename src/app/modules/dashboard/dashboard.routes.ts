@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAllUsers, getUserDetails, deleteConversation, suspendUserSubscription, uploadHeroImage } from './dashboard.controller';
+import { getAllUsers, getUserDetails, deleteConversation, suspendUserSubscription, uploadAHeroImage, getAllHeroImages } from './dashboard.controller';
 import { requireRole } from '../auth/auth.middleware';
 import multer from 'multer';
 
@@ -19,6 +19,9 @@ router.delete('/conversation/:conversationId', requireRole('admin'), deleteConve
 router.put('/suspend-subscription/:userId', requireRole('admin'), suspendUserSubscription);
 
 // Route to upload hero section image (Task 3)
-router.post('/upload-hero-image', requireRole('admin'), upload.single('image'), uploadHeroImage);
+router.post('/upload-hero-image', requireRole('admin'), upload.single('image'), uploadAHeroImage);
+
+// New route to retrieve all hero section images
+router.get('/hero-images', requireRole('admin'), getAllHeroImages);
 
 export default router;

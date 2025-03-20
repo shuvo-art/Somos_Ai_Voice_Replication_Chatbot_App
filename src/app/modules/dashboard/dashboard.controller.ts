@@ -4,7 +4,7 @@ import { User, IUser } from '../user/user.model';
 import { ChatHistory } from '../chatbot/chatHistory.model';
 import { Subscription } from '../subscription/subscription.model';
 import { Package } from '../subscription/package.model';
-import { uploadImage } from '../../utils/cloudinary';
+import { uploadImage, uploadHeroImage, getHeroImages } from '../../utils/cloudinary';
 import fs from 'fs/promises';
 import Stripe from 'stripe';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -220,21 +220,34 @@ export const deleteConversation = async (req: Request, res: Response): Promise<v
   }
 };
 
-// Task 3: Upload hero section image
-export const uploadHeroImage = async (req: Request, res: Response): Promise<void> => {
+export const uploadAHeroImage = async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.file) {
       res.status(400).json({ success: false, message: 'No file uploaded' });
       return;
     }
-
-    const result = await uploadImage(req.file.path); // Upload to Cloudinary
-    await fs.unlink(req.file.path); // Clean up local file
-
+    const result = await uploadHeroImage(req.file.path);
+    await fs.unlink(req.file.path);
     const heroImageUrl = result.secure_url;
-
     res.status(200).json({ success: true, heroImageUrl });
   } catch (error) {
     res.status(500).json({ success: false, message: (error as Error).message });
+  }
+};
+
+// Task: Get all hero section images
+export const getAllHeroImages = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const heroImages = await getHeroImages();
+    res.status(200).json({
+      success: true,
+      heroImages,
+    });
+  } catch (error) {
+    console.error('Error in getAllHeroImages:', error); // Log the full error for debugging
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to retrieve hero images: Unknown error',
+    });
   }
 };
