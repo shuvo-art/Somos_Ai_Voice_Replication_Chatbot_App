@@ -246,10 +246,11 @@ export const getAllHeroImages = async (req: Request, res: Response): Promise<voi
       heroImages,
     });
   } catch (error) {
-    console.error('Error in getAllHeroImages:', error); // Log the full error for debugging
-    res.status(500).json({
+    console.error('Error in getAllHeroImages:', error);
+    const message = error instanceof Error ? error.message : 'Failed to retrieve hero images: Unknown error';
+    res.status(429).json({ // Use 429 Too Many Requests for rate limit errors
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to retrieve hero images: Unknown error',
+      message,
     });
   }
 };

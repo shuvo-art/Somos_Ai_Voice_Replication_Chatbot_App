@@ -52,13 +52,16 @@ export const getHeroImages = async (): Promise<{ public_id: string; secure_url: 
       secure_url: resource.secure_url,
     }));
   } catch (error) {
-    // Handle Cloudinary-specific errors
     if (error instanceof Error) {
       throw new Error(`Failed to retrieve hero images: ${error.message}`);
     } else {
-      // Cloudinary errors are often objects with a `message` property
       const errorObj = error as { message?: string; http_code?: number };
       const errorMessage = errorObj.message || JSON.stringify(errorObj);
+      if (errorObj.http_code === 420 && errorObj.message?.includes('Rate Limit Exceeded')) {
+        const retryMatch = errorObj.message.match(/Try again on (.+)/);
+        const retryAfter = retryMatch ? retryMatch[1] : 'a later time';
+        throw new Error(`Rate limit exceeded. Please try again after ${retryAfter}.`);
+      }
       throw new Error(`Failed to retrieve hero images: ${errorMessage}`);
     }
   }
