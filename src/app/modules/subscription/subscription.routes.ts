@@ -292,13 +292,41 @@ router.get('/details', authenticate, async (req: Request, res: Response): Promis
       return;
     }
 
-    const subscription = await Subscription.findOne({ user: userId }).populate('package');
+    let subscription = await Subscription.findOne({ user: userId }).populate('package');
+
+    // If the subscription is missing (e.g., after cancellation), respond with a default inactive free trial
     if (!subscription) {
-      res.status(404).json({ success: false, message: 'No subscription found for this user.' });
+      const freePackage = await Package.findOne({ subscriptionType: 'Monthly', status: 'Active', amount: 0 });
+      if (!freePackage) {
+        res.status(404).json({ success: false, message: 'No subscription found for this user.' });
+        return;
+      }
+
+      const today = new Date();
+      const startDate = new Date(today.setHours(0, 0, 0, 0));
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + 1);
+
+      res.status(200).json({
+        success: true,
+        subscription: {
+          amount: "$0.00",
+          begins: startDate.toISOString().split('T')[0],
+          ends: endDate.toISOString().split('T')[0],
+          type: 'Monthly',
+          trialActive: false,
+          trialExpires: null
+        }
+      });
       return;
     }
 
     const selectedPackage = subscription.package as any;
+    const trialExpires =
+      subscription.trialActive && selectedPackage.freeTrialDays
+        ? new Date(subscription.startDate.getTime() + selectedPackage.freeTrialDays * 24 * 60 * 60 * 1000)
+        : null;
+
     res.status(200).json({
       success: true,
       subscription: {
@@ -307,12 +335,14 @@ router.get('/details', authenticate, async (req: Request, res: Response): Promis
         ends: subscription.endDate.toISOString().split('T')[0],
         type: selectedPackage.subscriptionType,
         trialActive: subscription.trialActive,
-      },
+        trialExpires: trialExpires ? trialExpires.toISOString().split('T')[0] : null
+      }
     });
   } catch (error: any) {
     console.error('Error fetching subscription:', error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
 
 export default router;
