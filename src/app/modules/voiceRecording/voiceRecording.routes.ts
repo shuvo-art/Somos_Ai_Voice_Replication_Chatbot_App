@@ -10,34 +10,45 @@ import fs from 'fs';
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
-// Task 1: Get all recorded voices for the home page with a configurable limit
+// Task 1: Get all recorded voices for the home page with a configurable limit and optional title filter
 router.get('/recordings', authenticate, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      res.status(401).json({ success: false, message: 'Unauthorized' });
-      return;
-    }
-
-    const limitParam = req.query.limit as string;
-    let limit = 5;
-    if (limitParam) {
-      const parsedLimit = parseInt(limitParam);
-      if (!isNaN(parsedLimit) && parsedLimit > 0) {
-        limit = parsedLimit;
-      } else {
-        console.log('Step 4: Invalid limit provided, using default value of 5');
-        res.status(400).json({ success: false, message: 'Limit must be a positive integer' });
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
         return;
       }
+  
+      const limitParam = req.query.limit as string;
+      const titleParam = req.query.title as string;
+  
+      let limit = 5;
+      if (limitParam) {
+        const parsedLimit = parseInt(limitParam);
+        if (!isNaN(parsedLimit) && parsedLimit > 0) {
+          limit = parsedLimit;
+        } else {
+          console.log('Step 4: Invalid limit provided, using default value of 5');
+          res.status(400).json({ success: false, message: 'Limit must be a positive integer' });
+          return;
+        }
+      }
+  
+      // Step 5: Build query with optional title filter
+      const query: any = { user: userId };
+      if (titleParam) {
+        query.title = { $regex: titleParam, $options: 'i' }; // case-insensitive partial match
+      }
+  
+      console.log('Step 6: Running query with filters:', query);
+  
+      const recordings = await VoiceRecording.find(query).limit(limit);
+      res.status(200).json({ success: true, recordings });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
     }
-
-    const recordings = await VoiceRecording.find({ user: userId }).limit(limit);
-    res.status(200).json({ success: true, recordings });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+  });
+  
 
 // Task 1: Add a new voice recording (new or uploaded)
 router.post(

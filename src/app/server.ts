@@ -10,6 +10,7 @@ import policyRoutes from './modules/policy/policy.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import chatbotRoutes from './modules/chatbot/chatbot.routes';
 import problemRoutes from './modules/problem/problem.routes';
+import notificationRoutes from './modules/notification/notification.routes';
 import { authenticate } from './modules/auth/auth.middleware';
 
 const router = express.Router();
@@ -26,6 +27,8 @@ router.use('/chats', authenticate, chatRoutes);
 
 router.use('/subscription', authenticate, subscriptionRoutes);
 router.use('/package', authenticate, packageRoutes);
+
+router.use('/notification', authenticate, notificationRoutes);
 
 // Admin-only routes
 router.use('/policy', authenticate, policyRoutes);

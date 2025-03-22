@@ -5,6 +5,7 @@ import { User } from '../user/user.model';
 import { Package } from './package.model';
 import jwt from 'jsonwebtoken';
 import { authenticate } from '../auth/auth.middleware';
+import { createSubscriptionNotification } from '../../utils/notification.helper';
 
 const router = express.Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -201,6 +202,7 @@ router.post('/cancel', authenticate, async (req: Request, res: Response): Promis
     if (!subscription.stripeSubscriptionId) {
       console.log('Step 8: No stripeSubscriptionId found, deleting subscription from database');
       await Subscription.deleteOne({ user: userId });
+      await createSubscriptionNotification(userId, 'subscription-canceled');
       console.log('Step 9: Subscription deleted from database');
       res.status(200).json({ success: true, message: 'Subscription canceled successfully (no Stripe subscription associated).' });
       return;

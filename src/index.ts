@@ -8,6 +8,7 @@ import cors from 'cors';
 import { initializeSocketIO } from './socketIO';
 import appRoutes from './app/server';
 import subscriptionWebhook from './app/modules/subscription/subscription.controller';
+import { startCronJobs } from './app/cronJobs';
 
 const app = express();
 const server = createServer(app);
@@ -34,7 +35,10 @@ initializeSocketIO(server);
 // Connect to MongoDB
 mongoose
   .connect(process.env.MONGO_URI as string)
-  .then(() => console.log('Database connected'))
+  .then(() => {
+    console.log('Database connected');
+    startCronJobs(); // Start cron jobs after DB connection
+  })
   .catch((err) => console.error('Database connection error:', err));
 
 // Start the server
