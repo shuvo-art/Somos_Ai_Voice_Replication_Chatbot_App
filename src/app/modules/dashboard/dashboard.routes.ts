@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAllUsers, getUserDetails, deleteConversation, suspendUserSubscription, uploadAHeroImage, getAllHeroImages } from './dashboard.controller';
+import { getAllUsers, getUserDetails, deleteConversation, suspendUserSubscription, uploadAHeroImage, getAllHeroImages, deleteHeroImageController } from './dashboard.controller';
 import { requireRole } from '../auth/auth.middleware';
 import multer from 'multer';
 
@@ -23,5 +23,8 @@ router.post('/upload-hero-image', requireRole('admin'), upload.single('image'), 
 
 // New route to retrieve all hero section images
 router.get('/hero-images', requireRole('admin'), getAllHeroImages);
+
+// New route to delete a hero image
+router.delete('/hero-image/:publicId', requireRole('admin'), deleteHeroImageController);
 
 export default router;

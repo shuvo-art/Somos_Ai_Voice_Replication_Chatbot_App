@@ -66,3 +66,16 @@ export const getHeroImages = async (): Promise<{ public_id: string; secure_url: 
     }
   }
 };
+
+
+// Updated function to delete a hero image with response validation
+export const deleteHeroImage = async (publicId: string): Promise<void> => {
+  try {
+    const result = await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+    if (result.result !== 'ok') {
+      throw new Error(`Failed to delete hero image: ${result.result === 'not found' ? 'Image not found' : 'Unknown error'}`);
+    }
+  } catch (error) {
+    throw new Error(`Failed to delete hero image: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
+  }
+};

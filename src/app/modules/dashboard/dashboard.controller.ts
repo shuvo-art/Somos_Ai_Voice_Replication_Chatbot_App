@@ -4,7 +4,7 @@ import { User, IUser } from '../user/user.model';
 import { ChatHistory } from '../chatbot/chatHistory.model';
 import { Subscription } from '../subscription/subscription.model';
 import { Package } from '../subscription/package.model';
-import { uploadImage, uploadHeroImage, getHeroImages } from '../../utils/cloudinary';
+import { uploadImage, uploadHeroImage, getHeroImages, deleteHeroImage } from '../../utils/cloudinary';
 import fs from 'fs/promises';
 import Stripe from 'stripe';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -248,9 +248,31 @@ export const getAllHeroImages = async (req: Request, res: Response): Promise<voi
   } catch (error) {
     console.error('Error in getAllHeroImages:', error);
     const message = error instanceof Error ? error.message : 'Failed to retrieve hero images: Unknown error';
-    res.status(429).json({ // Use 429 Too Many Requests for rate limit errors
+    res.status(429).json({
       success: false,
       message,
+    });
+  }
+};
+
+// Task: Delete a hero image
+export const deleteHeroImageController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { publicId } = req.params;
+    if (!publicId) {
+      res.status(400).json({ success: false, message: 'Public ID is required' });
+      return;
+    }
+
+    // Ensure the publicId includes the folder prefix if necessary
+    const fullPublicId = publicId.startsWith('hero_images/') ? publicId : `hero_images/${publicId}`;
+    await deleteHeroImage(fullPublicId);
+    res.status(200).json({ success: true, message: `Hero image ${fullPublicId} deleted successfully` });
+  } catch (error) {
+    console.error('Error in deleteHeroImageController:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to delete hero image: Unknown error',
     });
   }
 };
