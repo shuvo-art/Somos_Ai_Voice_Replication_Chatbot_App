@@ -300,7 +300,7 @@ router.get('/details', authenticate, async (req: Request, res: Response): Promis
     if (!subscription) {
       const freePackage = await Package.findOne({ subscriptionType: 'Monthly', status: 'Active', amount: 0 });
       if (!freePackage) {
-        res.status(404).json({ success: false, message: 'No subscription found for this user.' });
+        res.status(404).json({ success: false, message: 'No subscription or free package found for this user.' });
         return;
       }
 
@@ -317,13 +317,20 @@ router.get('/details', authenticate, async (req: Request, res: Response): Promis
           ends: endDate.toISOString().split('T')[0],
           type: 'Monthly',
           trialActive: false,
-          trialExpires: null
-        }
+          trialExpires: null,
+        },
       });
       return;
     }
 
+    // Check if package is populated correctly
     const selectedPackage = subscription.package as any;
+    if (!selectedPackage || !selectedPackage.amount === undefined) {
+      console.error('Package not populated or missing amount for subscription:', subscription._id);
+      res.status(500).json({ success: false, message: 'Subscription package data is incomplete.' });
+      return;
+    }
+
     const trialExpires =
       subscription.trialActive && selectedPackage.freeTrialDays
         ? new Date(subscription.startDate.getTime() + selectedPackage.freeTrialDays * 24 * 60 * 60 * 1000)
@@ -337,8 +344,8 @@ router.get('/details', authenticate, async (req: Request, res: Response): Promis
         ends: subscription.endDate.toISOString().split('T')[0],
         type: selectedPackage.subscriptionType,
         trialActive: subscription.trialActive,
-        trialExpires: trialExpires ? trialExpires.toISOString().split('T')[0] : null
-      }
+        trialExpires: trialExpires ? trialExpires.toISOString().split('T')[0] : null,
+      },
     });
   } catch (error: any) {
     console.error('Error fetching subscription:', error.message);
