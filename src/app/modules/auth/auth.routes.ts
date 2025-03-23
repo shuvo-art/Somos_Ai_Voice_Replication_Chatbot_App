@@ -1,7 +1,7 @@
 import express, { Request, Response, RequestHandler } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { registerUser, loginUser, generateOTP, verifyOTP, generateAccessToken, generateRefreshToken, verifyRefreshToken } from './auth.service';
+import { registerUser, loginUser, generateOTP, verifyOTP, generateAccessToken, generateRefreshToken, verifyRefreshToken, otpMap } from './auth.service';
 import { User } from '../user/user.model';
 import { Subscription } from '../subscription/subscription.model';
 import { Package } from '../subscription/package.model';
@@ -305,19 +305,21 @@ router.post(
   (async (req: Request, res: Response): Promise<void> => {
     try {
       const { email, otp } = otpRequestSchema.parse(req.body);
-      const cachedOTP = otpCache.get(email);
+      const cachedOTP = otpMap.get(email); // ✅ Correct map
 
       if (!cachedOTP || cachedOTP !== otp) {
         res.status(400).json({ success: false, message: 'Invalid OTP' });
         return;
       }
-      otpCache.delete(email);
+
+      otpMap.delete(email); // ✅ Cleanup after successful verification
       res.status(200).json({ success: true, message: 'OTP verified successfully' });
     } catch (error: any) {
       res.status(400).json({ success: false, message: error.message });
     }
   }) as RequestHandler
 );
+
 
 // Verify OTP and reset password
 router.post(

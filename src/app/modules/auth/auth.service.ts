@@ -54,7 +54,7 @@ export const loginUser = async (email: string, password: string) => {
   return { user, token, role: user.role }; // Include the role in the response
 };
 
-const otpMap = new Map<string, string>();
+export const otpMap = new Map<string, string>();
 
 export const generateOTP = async (email: string) => {
   const otp = crypto.randomInt(1000, 9999).toString();
