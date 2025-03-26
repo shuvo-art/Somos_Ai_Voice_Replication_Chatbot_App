@@ -165,50 +165,84 @@ router.post(
   }
 );
 
-// Task 2: Update personalization data for a voice recording
+// Task 2: Update personalization data and profile picture for a voice recording
 router.put(
-  '/:recordingId/personalization',
-  authenticate,
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      const userId = req.user?.id;
-      const { recordingId } = req.params;
-      const { personalizationData } = req.body;
-
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
-
-      if (!personalizationData) {
-        res.status(400).json({ success: false, message: 'Personalization data is required' });
-        return;
-      }
-
-      const updateFields: { [key: string]: any } = {};
-      for (const key in personalizationData) {
-        if (personalizationData.hasOwnProperty(key)) {
-          updateFields[`personalizationData.${key}`] = personalizationData[key];
+    '/:recordingId/personalization',
+    authenticate,
+    upload.single('image'), // Add multer to handle image upload
+    async (req: Request, res: Response): Promise<void> => {
+      try {
+        const userId = req.user?.id;
+        const { recordingId } = req.params;
+        const { personalizationData } = req.body;
+        const file = req.file; // Image file from multer
+  
+        if (!userId) {
+          res.status(401).json({ success: false, message: 'Unauthorized' });
+          return;
         }
+  
+        const voiceRecording = await VoiceRecording.findOne({ _id: recordingId, user: userId });
+        if (!voiceRecording) {
+          res.status(404).json({ success: false, message: 'Voice recording not found' });
+          return;
+        }
+  
+        const updateFields: { [key: string]: any } = {};
+  
+        // Handle personalization data updates
+        if (personalizationData) {
+          let parsedPersonalizationData = personalizationData;
+          if (typeof personalizationData === 'string') {
+            try {
+              parsedPersonalizationData = JSON.parse(personalizationData);
+            } catch (e) {
+              console.log('Failed to parse personalizationData:', e);
+              parsedPersonalizationData = {};
+            }
+          }
+          for (const key in parsedPersonalizationData) {
+            if (parsedPersonalizationData.hasOwnProperty(key)) {
+              updateFields[`personalizationData.${key}`] = parsedPersonalizationData[key];
+            }
+          }
+        }
+  
+        // Handle image upload
+        if (file) {
+          console.log('Uploading new profile image to Cloudinary:', file.path);
+          const imageResult = await uploadImage(file.path);
+          updateFields.imageUrl = imageResult.secure_url;
+          console.log('New image URL:', imageResult.secure_url);
+          fs.unlinkSync(file.path); // Clean up temporary file
+        }
+  
+        if (Object.keys(updateFields).length === 0) {
+          res.status(400).json({ success: false, message: 'No updates provided' });
+          return;
+        }
+  
+        const updatedRecording = await VoiceRecording.findOneAndUpdate(
+          { _id: recordingId, user: userId },
+          { $set: updateFields },
+          { new: true, runValidators: true }
+        );
+  
+        if (!updatedRecording) {
+          res.status(404).json({ success: false, message: 'Voice recording not found' });
+          return;
+        }
+  
+        res.status(200).json({ success: true, voiceRecording: updatedRecording });
+      } catch (error: any) {
+        console.error('Error in update personalization:', error.message);
+        if (req.file) {
+          fs.unlinkSync(req.file.path); // Clean up on error
+        }
+        res.status(500).json({ success: false, message: error.message });
       }
-
-      const voiceRecording = await VoiceRecording.findOneAndUpdate(
-        { _id: recordingId, user: userId },
-        { $set: updateFields },
-        { new: true, runValidators: true }
-      );
-
-      if (!voiceRecording) {
-        res.status(404).json({ success: false, message: 'Voice recording not found' });
-        return;
-      }
-
-      res.status(200).json({ success: true, voiceRecording });
-    } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
     }
-  }
-);
+  );
 
 // Task 3: Talk to AI with selected voice
 router.post(
@@ -289,5 +323,38 @@ router.post(
     }
   }
 );
+
+
+// Task 1: Delete a voice recording by ID
+router.delete(
+    '/:recordingId',
+    authenticate,
+    async (req: Request, res: Response): Promise<void> => {
+      try {
+        const userId = req.user?.id;
+        const { recordingId } = req.params;
+  
+        if (!userId) {
+          res.status(401).json({ success: false, message: 'Unauthorized' });
+          return;
+        }
+  
+        const voiceRecording = await VoiceRecording.findOneAndDelete({
+          _id: recordingId,
+          user: userId,
+        });
+  
+        if (!voiceRecording) {
+          res.status(404).json({ success: false, message: 'Voice recording not found or you do not have permission to delete it' });
+          return;
+        }
+  
+        res.status(200).json({ success: true, message: 'Voice recording deleted successfully' });
+      } catch (error: any) {
+        console.error('Error in delete recording:', error.message);
+        res.status(500).json({ success: false, message: error.message });
+      }
+    }
+  );
 
 export default router;

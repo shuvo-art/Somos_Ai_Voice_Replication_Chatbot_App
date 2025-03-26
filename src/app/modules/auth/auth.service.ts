@@ -6,15 +6,17 @@ import { User, IUser } from '../user/user.model';
 import { Subscription } from '../subscription/subscription.model';
 import { Package } from '../subscription/package.model'; // Import Package model
 
-export const registerUser = async (email: string, password: string, name: string) => {
+export const registerUser = async (email: string, password: string, name: string, birthday?: Date) => {
   const hashedPassword = await bcrypt.hash(password, 10);
   const newUser = new User({
     email,
     password: hashedPassword,
     name,
+    birthday,
   });
   const savedUser = await newUser.save();
 
+  // Rest of the subscription logic remains the same...
   let freePackage = await Package.findOne({ subscriptionType: 'Monthly', amount: 0, status: 'Active' });
   if (!freePackage) {
     freePackage = new Package({

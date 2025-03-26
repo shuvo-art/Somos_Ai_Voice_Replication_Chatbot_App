@@ -41,6 +41,26 @@ router.post('/upload-profile-image', authenticate, upload.single('image'), async
       res.status(500).json({ success: false, message: error.message });
     }
   });
+
+
+  // Update FCM token
+router.post('/fcm-token', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { fcmToken } = req.body;
+
+    if (!fcmToken) {
+      res.status(400).json({ success: false, message: 'FCM token is required' });
+      return;
+    }
+
+    await User.findByIdAndUpdate(userId, { fcmToken });
+    res.status(200).json({ success: true, message: 'FCM token updated' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
   
   router.get('/profile', authenticate, getUserProfile); 
   router.put('/profile', authenticate, updateUserProfile); 

@@ -67,3 +67,6 @@ tests-output/
 *.test.ts
 *.spec.js
 *.spec.ts
+
+# Firebase Admin SDK key 
+src/app/config/somos-ai-voice-cloning-firebase-adminsdk-fbsvc-0793bb60e0.json

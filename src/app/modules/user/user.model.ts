@@ -7,6 +7,8 @@ export interface IUser extends Document {
   role: string;
   profileImage?: string;
   language?: string;
+  fcmToken?: string; // Add FCM token field
+  birthday?: Date; // Add birthday field for Task 2
 }
 
 const UserSchema: Schema = new Schema(
@@ -17,6 +19,8 @@ const UserSchema: Schema = new Schema(
     role: { type: String, enum: ['admin', 'user'], default: 'user' },
     profileImage: { type: String },
     language: { type: String, default: null, nullable: true },
+    fcmToken: { type: String, default: null }, // Store FCM token
+    birthday: { type: Date, default: null }, // Store birthday
   },
   { timestamps: true }
 );

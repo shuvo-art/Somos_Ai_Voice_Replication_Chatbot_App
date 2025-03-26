@@ -15,6 +15,7 @@ const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   name: z.string().min(1),
+  birthday: z.string().optional(), // Expect ISO date string (e.g., "1990-01-01")
 });
 
 const loginSchema = z.object({
@@ -53,41 +54,39 @@ router.post("/check-email", async (req: Request, res: Response): Promise<void> =
 });
 
 // Signup route
-router.post(
-  '/signup',
-  (async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { email, password, name } = signupSchema.parse(req.body);
-      const user = await registerUser(email, password, name);
+router.post('/signup', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, password, name, birthday } = signupSchema.parse(req.body);
+    const user = await registerUser(email, password, name, birthday ? new Date(birthday) : undefined);
 
-      const accessToken = generateAccessToken(user);
-      const refreshToken = generateRefreshToken(user);
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
 
-      refreshTokens.push(refreshToken);
+    refreshTokens.push(refreshToken);
 
-      const otp = await generateOTP(email);
+    const otp = await generateOTP(email);
 
-      const userResponse = {
-        _id: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        language: user.language,
-      };
+    const userResponse = {
+      _id: user._id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      language: user.language,
+      birthday: user.birthday,
+    };
 
-      res.status(201).json({
-        success: true,
-        message: 'User registered successfully. OTP sent to email.',
-        otp, // Remove in production
-        user: userResponse,
-        accessToken,
-        refreshToken,
-      });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
-    }
-  }) as RequestHandler
-);
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully. OTP sent to email.',
+      otp, // Remove in production
+      user: userResponse,
+      accessToken,
+      refreshToken,
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
 
 // Login
 router.post('/login', async (req: Request, res: Response): Promise<void> => {
