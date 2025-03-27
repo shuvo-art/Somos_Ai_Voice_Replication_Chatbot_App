@@ -42,23 +42,33 @@ const checkExpiriesAndBirthdays = async () => {
     }
 
     // Birthday check
-    const usersWithBirthday = await User.find({
-      birthday: {
-        $exists: true,
-        $ne: null,
-        $expr: {
-          $and: [
-            { $eq: [{ $month: '$birthday' }, { $month: today }] },
-            { $eq: [{ $dayOfMonth: '$birthday' }, { $dayOfMonth: today }] },
-          ],
+    const todayMonth = today.getMonth() + 1; // getMonth() is 0-based, MongoDB $month is 1-based
+    const todayDay = today.getDate();
+
+    const usersWithBirthday = await User.aggregate([
+      {
+        $match: {
+          birthday: { $exists: true, $ne: null },
         },
       },
-    });
+      {
+        $addFields: {
+          birthMonth: { $month: '$birthday' },
+          birthDay: { $dayOfMonth: '$birthday' },
+        },
+      },
+      {
+        $match: {
+          birthMonth: todayMonth,
+          birthDay: todayDay,
+        },
+      },
+    ]);
 
     for (const user of usersWithBirthday) {
       const title = 'Happy Birthday!';
       const message = 'Wishing you a fantastic birthday today at 10:00 PM!';
-      
+
       // Save to MongoDB
       await Notification.create({
         user: user._id,
