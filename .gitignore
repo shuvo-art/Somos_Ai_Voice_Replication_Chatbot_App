@@ -1,5 +1,6 @@
 # Node.js modules
 node_modules/
+client/node_modules/
 
 # Environment variables
 .env
@@ -26,6 +27,7 @@ Thumbs.db
 # Build files
 dist/
 build/
+client/dist/
 
 # MongoDB database lock files
 *.lock
@@ -58,6 +60,10 @@ socket.io/
 # Cloudinary
 cloudinary/
 
+# Uploads directory
+uploads/
+
+
 # Axios-specific cache files (if enabled)
 axios-cache/
 
@@ -70,3 +76,4 @@ tests-output/
 
 # Firebase Admin SDK key 
 src/app/config/somos-ai-voice-cloning-firebase-adminsdk-fbsvc-0793bb60e0.json
+

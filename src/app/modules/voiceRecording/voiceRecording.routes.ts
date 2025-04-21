@@ -106,15 +106,15 @@ router.post(
         console.log('Step 11: Image uploaded, URL:', imageUrl);
       }
 
-      const pythonScriptPath = path.join(__dirname, '../../../../python/audio_cloning.py');
+      const pythonScriptPath = path.join(__dirname, '../../python/audio_cloning.py');
       const tempAudioPath = files.audio[0].path.replace(/\\/g, '/');
       const cloneName = `${title}-${userId}`.replace(/ /g, '_');
       console.log('Step 12: Preparing to call Python script:', { pythonScriptPath, tempAudioPath, cloneName });
 
       const clonedVoiceId = await new Promise<string>((resolve, reject) => {
-        const command = `python -u "${pythonScriptPath}" "${tempAudioPath}" "${cloneName}"`;
+        const command = `python3 -u "${pythonScriptPath}" "${tempAudioPath}" "${cloneName}"`;
         console.log('Step 12.5: Executing command:', command);
-        exec(command, { shell: 'cmd.exe' }, (error, stdout, stderr) => {
+        exec(command, (error, stdout, stderr) => {
           console.log('Step 13: Python script executed, stdout:', stdout);
           console.log('Step 14: Python script executed, stderr:', stderr);
           if (error) {
@@ -271,13 +271,13 @@ router.post(
         return;
       }
 
-      const tempFilePath = path.join(__dirname, '../../../../uploads/temp_user_data.json');
+      const tempFilePath = path.join(__dirname, '../../uploads/temp_user_data.json');
       fs.writeFileSync(tempFilePath, JSON.stringify(voiceRecording.personalizationData));
       console.log('Step 4: Wrote userData to temporary file:', tempFilePath);
 
-      const pythonScriptPath = path.join(__dirname, '../../../../python/generate_ai_response.py');
-      const outputAudioPath = path.join(__dirname, '../../../../uploads/generated_audio.wav');
-      const command = `python -u "${pythonScriptPath}" "${userInput}" ${voiceRecording.clonedVoiceId} "${tempFilePath}" "${outputAudioPath}"`;
+      const pythonScriptPath = path.join(__dirname, '../../python/generate_ai_response.py');
+      const outputAudioPath = path.join(__dirname, '../../Uploads/generated_audio.wav');
+      const command = `python3 -u "${pythonScriptPath}" "${userInput}" ${voiceRecording.clonedVoiceId} "${tempFilePath}" "${outputAudioPath}"`;
       console.log('Step 5: Executing command:', command);
 
       const generatedAudioPath = await new Promise<string>((resolve, reject) => {

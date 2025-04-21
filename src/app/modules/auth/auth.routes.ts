@@ -16,12 +16,21 @@ const signupSchema = z.object({
   password: z.string().min(8),
   name: z.string().min(1),
   birthday: z.string().optional(), // Expect ISO date string (e.g., "1990-01-01")
+  fcmToken: z.string().optional(), // Add fcmToken
 });
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string(),
   isAdmin: z.boolean().optional(),
+  fcmToken: z.string().optional(), // Add fcmToken
+});
+
+const oauthSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(1),
+  profileImage: z.string().optional(),
+  fcmToken: z.string().optional(), // Add fcmToken
 });
 
 const otpRequestSchema = z.object({
@@ -56,8 +65,8 @@ router.post("/check-email", async (req: Request, res: Response): Promise<void> =
 // Signup route
 router.post('/signup', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password, name, birthday } = signupSchema.parse(req.body);
-    const user = await registerUser(email, password, name, birthday ? new Date(birthday) : undefined);
+    const { email, password, name, birthday, fcmToken } = signupSchema.parse(req.body);
+    const user = await registerUser(email, password, name, birthday ? new Date(birthday) : undefined, fcmToken);
 
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
@@ -73,6 +82,7 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
       role: user.role,
       language: user.language,
       birthday: user.birthday,
+      fcmToken: user.fcmToken, // Include fcmToken in response
     };
 
     res.status(201).json({
@@ -91,12 +101,18 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
 // Login
 router.post('/login', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password } = loginSchema.parse(req.body);
+    const { email, password, fcmToken } = loginSchema.parse(req.body);
     const user = await User.findOne({ email });
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
       res.status(401).json({ success: false, message: 'Invalid email or password' });
       return;
+    }
+
+    // Update fcmToken if provided
+    if (fcmToken) {
+      user.fcmToken = fcmToken;
+      await user.save();
     }
 
     const existingSubscription = await Subscription.findOne({ user: user._id });
@@ -139,6 +155,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
         role: user.role,
         language: user.language,
         profileImage: user.profileImage,
+        fcmToken: user.fcmToken, // Include fcmToken in response
       },
       accessToken,
       refreshToken,
@@ -152,7 +169,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 // Google OAuth Login/Signup
 router.post('/oauth/google', (async (req: Request, res: Response) => {
   try {
-    const { email, name, profileImage } = req.body;
+    const { email, name, profileImage, fcmToken } = oauthSchema.parse(req.body);
 
     if (!email || !name) {
       return res.status(400).json({ success: false, message: 'Email and name are required' });
@@ -165,7 +182,8 @@ router.post('/oauth/google', (async (req: Request, res: Response) => {
         email,
         name,
         profileImage,
-        password: 'oauth_temp_password', // Dummy password
+        password: 'oauth_temp_password',
+        fcmToken, // Set fcmToken if provided
       });
       await user.save();
 
@@ -192,6 +210,10 @@ router.post('/oauth/google', (async (req: Request, res: Response) => {
         endDate,
         trialActive: false,
       });
+    } else if (fcmToken) {
+      // Update fcmToken for existing user
+      user.fcmToken = fcmToken;
+      await user.save();
     }
 
     const accessToken = generateAccessToken(user);
@@ -207,6 +229,7 @@ router.post('/oauth/google', (async (req: Request, res: Response) => {
         role: user.role,
         profileImage: user.profileImage,
         language: user.language,
+        fcmToken: user.fcmToken, // Include fcmToken in response
       },
       accessToken,
       refreshToken,
@@ -219,7 +242,7 @@ router.post('/oauth/google', (async (req: Request, res: Response) => {
 // Apple OAuth Login/Signup
 router.post('/oauth/apple', (async (req: Request, res: Response) => {
   try {
-    const { email, name, profileImage } = req.body;
+    const { email, name, profileImage, fcmToken } = oauthSchema.parse(req.body);
 
     if (!email || !name) {
       return res.status(400).json({ success: false, message: 'Email and name are required' });
@@ -232,7 +255,8 @@ router.post('/oauth/apple', (async (req: Request, res: Response) => {
         email,
         name,
         profileImage,
-        password: 'oauth_temp_password', // Dummy password
+        password: 'oauth_temp_password',
+        fcmToken, // Set fcmToken if provided
       });
       await user.save();
 
@@ -259,6 +283,10 @@ router.post('/oauth/apple', (async (req: Request, res: Response) => {
         endDate,
         trialActive: false,
       });
+    } else if (fcmToken) {
+      // Update fcmToken for existing user
+      user.fcmToken = fcmToken;
+      await user.save();
     }
 
     const accessToken = generateAccessToken(user);
@@ -274,6 +302,7 @@ router.post('/oauth/apple', (async (req: Request, res: Response) => {
         role: user.role,
         profileImage: user.profileImage,
         language: user.language,
+        fcmToken: user.fcmToken, // Include fcmToken in response
       },
       accessToken,
       refreshToken,

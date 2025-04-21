@@ -1,0 +1,102 @@
+{
+    "family": "somos-ai-task",
+    "networkMode": "awsvpc",
+    "containerDefinitions": [
+      {
+        "name": "backend",
+        "image": "${DOCKER_USERNAME}/somos-ai-backend:latest",
+        "essential": true,
+        "portMappings": [
+          {
+            "containerPort": 5005,
+            "hostPort": 5005
+          }
+        ],
+        "environment": [
+          {
+            "name": "NODE_ENV",
+            "value": "production"
+          },
+          {
+            "name": "PORT",
+            "value": "5005"
+          },
+          {
+            "name": "BASE_URL",
+            "value": "${BASE_URL}"
+          },
+          {
+            "name": "ALLOWED_ORIGINS",
+            "value": "${ALLOWED_ORIGINS}"
+          },
+          {
+            "name": "CLOUDINARY_CLOUD_NAME",
+            "value": "${CLOUDINARY_CLOUD_NAME}"
+          },
+          {
+            "name": "CLOUDINARY_API_KEY",
+            "value": "${CLOUDINARY_API_KEY}"
+          },
+          {
+            "name": "FIREBASE_CREDENTIALS_PATH",
+            "value": "/app/src/app/config/somos-ai-voice-cloning-firebase-adminsdk-fbsvc-0793bb60e0.json"
+          }
+        ],
+        "secrets": [
+          {
+            "name": "MONGO_URI",
+            "valueFrom": "${AWS_SECRETS_ARN}:MONGO_URI::"
+          },
+          {
+            "name": "JWT_SECRET",
+            "valueFrom": "${AWS_SECRETS_ARN}:JWT_SECRET::"
+          },
+          {
+            "name": "REFRESH_TOKEN_SECRET",
+            "valueFrom": "${AWS_SECRETS_ARN}:REFRESH_TOKEN_SECRET::"
+          },
+          {
+            "name": "CLOUDINARY_API_SECRET",
+            "valueFrom": "${AWS_SECRETS_ARN}:CLOUDINARY_API_SECRET::"
+          },
+          {
+            "name": "STRIPE_SECRET_KEY",
+            "valueFrom": "${AWS_SECRETS_ARN}:STRIPE_SECRET_KEY::"
+          },
+          {
+            "name": "STRIPE_WEBHOOK_SECRET",
+            "valueFrom": "${AWS_SECRETS_ARN}:STRIPE_WEBHOOK_SECRET::"
+          },
+          {
+            "name": "EMAIL_USER",
+            "valueFrom": "${AWS_SECRETS_ARN}:EMAIL_USER::"
+          },
+          {
+            "name": "EMAIL_PASS",
+            "valueFrom": "${AWS_SECRETS_ARN}:EMAIL_PASS::"
+          },
+          {
+            "name": "ADMIN_EMAIL",
+            "valueFrom": "${AWS_SECRETS_ARN}:ADMIN_EMAIL::"
+          },
+          {
+            "name": "OPENAI_API_KEY",
+            "valueFrom": "${AWS_SECRETS_ARN}:OPENAI_API_KEY::"
+          }
+        ],
+        "logConfiguration": {
+          "logDriver": "awslogs",
+          "options": {
+            "awslogs-group": "/ecs/somos-ai",
+            "awslogs-region": "us-east-1",
+            "awslogs-stream-prefix": "backend"
+          }
+        }
+      }
+    ],
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "1024",
+    "memory": "2048",
+    "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskExecutionRole",
+    "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskExecutionRole"
+  }
