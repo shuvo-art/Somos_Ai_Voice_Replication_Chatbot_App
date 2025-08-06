@@ -14,9 +14,12 @@ if not openai.api_key:
     print("Error: OPENAI_API_KEY environment variable not set.")
     sys.exit(1)
     
-# Configure ElevenLabs API key
-set_api_key("sk_64d6b4479e000033f8c46242b98f1dc388a160e8855286e1")
-
+# Fetch the ElevenLabs API key from an environment variable
+set_api_key(os.getenv("ELEVENLABS_API_KEY"))
+if not os.getenv("ELEVENLABS_API_KEY"):
+    print("Error: ELEVENLABS_API_KEY environment variable not set.")
+    sys.exit(1)
+    
 # Unset any proxy environment variables to prevent interference
 for proxy_var in ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']:
     if proxy_var in os.environ:

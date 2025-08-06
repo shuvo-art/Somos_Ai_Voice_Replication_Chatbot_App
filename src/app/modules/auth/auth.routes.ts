@@ -66,6 +66,13 @@ router.post("/check-email", async (req: Request, res: Response): Promise<void> =
 router.post('/signup', async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password, name, birthday, fcmToken } = signupSchema.parse(req.body);
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      res.status(400).json({ success: false, message: 'User already exists' });
+      return;
+    }
+    
     const user = await registerUser(email, password, name, birthday ? new Date(birthday) : undefined, fcmToken);
 
     const accessToken = generateAccessToken(user);

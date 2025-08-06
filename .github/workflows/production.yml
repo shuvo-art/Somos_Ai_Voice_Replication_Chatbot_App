@@ -1,0 +1,176 @@
+name: Production Deployment to GoDaddy VPS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set short git commit SHA
+        id: vars
+        run: |
+          calculatedSha=$(git rev-parse --short ${{ github.sha }})
+          echo "COMMIT_SHORT_SHA=$calculatedSha" >> $GITHUB_ENV
+
+      - name: Confirm git commit SHA
+        run: echo ${{ env.COMMIT_SHORT_SHA }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build, tag, and push image to Docker Hub
+        env:
+          REGISTRY: docker.io
+          REPOSITORY: your_dockerhub_username/somos-ai-voice-replication
+          IMAGE_TAG: ${{ env.COMMIT_SHORT_SHA }}
+        run: |
+          touch .env
+          echo "${{ secrets.PROD_ENV }}" | base64 -d >> .env
+          cat .env
+          docker build \
+            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: Deploy to GoDaddy VPS
+        uses: appleboy/ssh-action@v1.0.0
+        env:
+          REGISTRY: docker.io
+          REPOSITORY: your_dockerhub_username/somos-ai-voice-replication
+          IMAGE_TAG: ${{ env.COMMIT_SHORT_SHA }}
+        with:
+          host: ${{ secrets.GODADDY_VPS_HOST }}
+          username: ${{ secrets.GODADDY_VPS_USERNAME }}
+          key: ${{ secrets.GODADDY_VPS_SSH_KEY }}
+          port: ${{ secrets.GODADDY_VPS_SSH_PORT }}
+          envs: REGISTRY,REPOSITORY,IMAGE_TAG
+          script: |
+            # Install Docker and Docker Compose if not already installed
+            if ! command -v docker &> /dev/null; then
+              echo "Installing Docker..."
+              sudo apt-get update
+              sudo apt-get install -y docker.io
+              sudo systemctl start docker
+              sudo systemctl enable docker
+            fi
+
+            if ! command -v docker-compose &> /dev/null; then
+              echo "Installing Docker Compose..."
+              sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+            fi
+
+            # Create project directory
+            mkdir -p /home/${{ secrets.GODADDY_VPS_USERNAME }}/somos-ai-voice-replication
+            cd /home/${{ secrets.GODADDY_VPS_USERNAME }}/somos-ai-voice-replication
+
+            # Copy docker-compose.prod.yml to the server
+            cat << 'EOF' > docker-compose.prod.yml
+            version: '3.8'
+            services:
+              nginx:
+                container_name: nginx
+                image: nginx:stable-alpine
+                ports:
+                  - '80:80'
+                volumes:
+                  - ./nginx:/etc/nginx/conf.d/
+                depends_on:
+                  - api
+                networks:
+                  - app-network
+                restart: always
+              redis:
+                container_name: redis
+                image: redis:alpine
+                restart: always
+                environment:
+                  REDIS_URI: redis://default:password@redis:6379
+                volumes:
+                  - redis_volume_data:/var/lib/redis/data
+                ports:
+                  - 6379:6379
+                networks:
+                  - app-network
+                healthcheck:
+                  test: ["CMD", "redis-cli", "ping"]
+                  interval: 30s
+                  timeout: 10s
+                  retries: 3
+              api:
+                container_name: api
+                image: $REGISTRY/$REPOSITORY:$IMAGE_TAG
+                env_file:
+                  - .env
+                depends_on:
+                  - redis
+                networks:
+                  - app-network
+                command: node -r dotenv/config dist/index.js
+                volumes:
+                  - ./Uploads:/app/uploads
+                  - ./.env:/app/.env
+                healthcheck:
+                  test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:5005/api/v1/health || exit 1"]
+                  interval: 30s
+                  timeout: 10s
+                  retries: 3
+                  start_period: 120s
+                restart: unless-stopped
+            volumes:
+              redis_volume_data:
+            networks:
+              app-network:
+                driver: bridge
+            EOF
+
+            # Create .env file
+            echo "${{ secrets.PROD_ENV }}" | base64 -d > .env
+            echo "IMAGE_TAG=$IMAGE_TAG" >> .env
+
+            # Create nginx and Uploads directories
+            mkdir -p nginx Uploads
+            # Copy nginx configuration (assuming nginx.conf exists in the repository)
+            if [ -f nginx/nginx.conf ]; then
+              cp nginx/nginx.conf nginx/
+            else
+              cat << 'EOF' > nginx/nginx.conf
+              server {
+                listen 80;
+                server_name localhost;
+                location / {
+                  proxy_pass http://api:5005;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                }
+              }
+              EOF
+            fi
+
+            # Ensure proper permissions for Uploads directory
+            sudo chown -R 1000:1000 Uploads
+            sudo chmod -R 755 Uploads
+
+            # Login to Docker Hub
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login $REGISTRY -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+
+            # Stop and remove old containers
+            docker-compose -f docker-compose.prod.yml down
+            docker rmi $REGISTRY/$REPOSITORY:$CURRENT_TAG || true
+
+            # Pull new image
+            docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+            # Start services
+            docker-compose -f docker-compose.prod.yml up -d

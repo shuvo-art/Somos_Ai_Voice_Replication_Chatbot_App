@@ -12,8 +12,30 @@ import chatbotRoutes from './modules/chatbot/chatbot.routes';
 import problemRoutes from './modules/problem/problem.routes';
 import notificationRoutes from './modules/notification/notification.routes';
 import { authenticate } from './modules/auth/auth.middleware';
+import mongoose from 'mongoose';
 
 const router = express.Router();
+
+// Health check endpoints
+router.get('/health', (req, res) => {
+  console.log(`Health check requested at ${new Date().toISOString()}`);
+  res.status(200).json({ status: 'ok' });
+});
+
+router.get('/health/db', async (req, res) => {
+  try {
+    // Check MongoDB connection state
+    if (mongoose.connection.readyState === 1) {
+      res.status(200).send('Database connection healthy');
+    } else {
+      console.log('Health check failed: MongoDB not connected');
+      res.status(200).send('Application starting');
+    }
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(200).send('Application starting');
+  }
+});
 
 // Public routes
 router.use('/auth', authRoutes);

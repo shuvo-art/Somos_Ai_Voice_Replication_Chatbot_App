@@ -1,5 +1,4 @@
 # Stage 1: Build Stage
-# Use Node.js 18 as the base image
 FROM node:18-slim AS builder
 
 # Install build dependencies
@@ -9,7 +8,11 @@ RUN apt-get update && apt-get install -y \
     python3-venv \
     build-essential \
     libsndfile1-dev \
+    libffi-dev \
     ffmpeg \
+    nano \
+    curl \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -21,9 +24,9 @@ RUN npm ci
 
 # Copy Python requirements and install Python dependencies in a virtual environment
 COPY python/requirements.txt ./python/
+COPY python/ ./python/
 RUN python3 -m venv /app/venv && \
-    . /app/venv/bin/activate && \
-    pip install --no-cache-dir -r python/requirements.txt
+    /app/venv/bin/pip install --no-cache-dir -r python/requirements.txt
 
 # Copy the entire application source code
 COPY . .
@@ -38,14 +41,20 @@ FROM node:18-slim
 RUN apt-get update && apt-get install -y \
     python3 \
     libsndfile1 \
+    libffi-dev \
     ffmpeg \
+    curl \
+    wget \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
 # Create uploads directory with proper permissions
-RUN mkdir -p /app/uploads && chmod -R 777 /app/uploads
+RUN mkdir -p /app/uploads /app/python && \
+    chown -R node:node /app/uploads /app/python && \
+    chmod -R 755 /app/uploads /app/python
 
 # Copy virtual environment from builder
 COPY --from=builder /app/venv ./venv
@@ -54,20 +63,27 @@ COPY --from=builder /app/venv ./venv
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/python ./python
-COPY --from=builder /app/uploads ./uploads
+COPY --from=builder /app/.env ./.env
 
-# Install production Node.js dependencies only
+# Install production Node.js dependencies
 RUN npm ci --omit=dev --no-audit --no-fund
+
+# Set ownership and permissions for the application directories
+RUN chown -R node:node /app && \
+    chmod -R 755 /app
+
+# Switch to non-root user
+USER node
 
 # Set environment variables for Python
 ENV PATH="/app/venv/bin:$PATH"
 
-# Create a non-root user to run the app
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
-USER appuser
-
 # Expose application port
 EXPOSE 5005
 
+# Health check configuration
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+    CMD wget -q -O - http://127.0.0.1:5005/api/v1/health || exit 1
+
 # Start the application
-CMD ["node", "dist/index.js"]
+CMD ["node", "-r", "dotenv/config", "dist/index.js"]
