@@ -30,7 +30,7 @@ jobs:
       - name: Build, tag, and push image to Docker Hub
         env:
           REGISTRY: docker.io
-          REPOSITORY: your_dockerhub_username/somos-ai-voice-replication
+          REPOSITORY: shuvo83qn/somos-ai-voice-replication
           IMAGE_TAG: ${{ env.COMMIT_SHORT_SHA }}
         run: |
           touch .env
@@ -45,7 +45,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.0
         env:
           REGISTRY: docker.io
-          REPOSITORY: your_dockerhub_username/somos-ai-voice-replication
+          REPOSITORY: shuvo83qn/somos-ai-voice-replication
           IMAGE_TAG: ${{ env.COMMIT_SHORT_SHA }}
         with:
           host: ${{ secrets.GODADDY_VPS_HOST }}
@@ -54,15 +54,17 @@ jobs:
           port: ${{ secrets.GODADDY_VPS_SSH_PORT }}
           envs: REGISTRY,REPOSITORY,IMAGE_TAG
           script: |
-            # Install Docker and Docker Compose if not already installed
+            # Install Docker if not already installed
             if ! command -v docker &> /dev/null; then
               echo "Installing Docker..."
-              sudo apt-get update
-              sudo apt-get install -y docker.io
+              sudo dnf install -y dnf-plugins-core
+              sudo dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
+              sudo dnf install -y docker-ce docker-ce-cli containerd.io
               sudo systemctl start docker
               sudo systemctl enable docker
             fi
 
+            # Install Docker Compose if not already installed
             if ! command -v docker-compose &> /dev/null; then
               echo "Installing Docker Compose..."
               sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -70,8 +72,8 @@ jobs:
             fi
 
             # Create project directory
-            mkdir -p /home/${{ secrets.GODADDY_VPS_USERNAME }}/somos-ai-voice-replication
-            cd /home/${{ secrets.GODADDY_VPS_USERNAME }}/somos-ai-voice-replication
+            mkdir -p /root/somos-ai-voice-replication
+            cd /root/somos-ai-voice-replication
 
             # Copy docker-compose.prod.yml to the server
             cat << 'EOF' > docker-compose.prod.yml
@@ -117,7 +119,7 @@ jobs:
                   - app-network
                 command: node -r dotenv/config dist/index.js
                 volumes:
-                  - ./Uploads:/app/uploads
+                  - ./uploads:/app/uploads
                   - ./.env:/app/.env
                 healthcheck:
                   test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:5005/api/v1/health || exit 1"]
@@ -137,30 +139,47 @@ jobs:
             echo "${{ secrets.PROD_ENV }}" | base64 -d > .env
             echo "IMAGE_TAG=$IMAGE_TAG" >> .env
 
-            # Create nginx and Uploads directories
-            mkdir -p nginx Uploads
-            # Copy nginx configuration (assuming nginx.conf exists in the repository)
-            if [ -f nginx/nginx.conf ]; then
-              cp nginx/nginx.conf nginx/
+            # Create nginx and uploads directories
+            mkdir -p nginx uploads
+            # Copy nginx configuration
+            if [ -f nginx/default.conf ]; then
+              cp nginx/default.conf nginx/
             else
-              cat << 'EOF' > nginx/nginx.conf
+              cat << 'EOF' > nginx/default.conf
               server {
                 listen 80;
-                server_name localhost;
-                location / {
-                  proxy_pass http://api:5005;
-                  proxy_set_header Host $host;
+                client_max_body_size 5M;
+                location /api {
                   proxy_set_header X-Real-IP $remote_addr;
                   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_set_header Host $http_host;
+                  proxy_set_header X-NginX-Proxy true;
+                  proxy_pass http://api:5005;
+                  proxy_redirect off;
+                }
+                location /docs {
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header Host $http_host;
+                  proxy_set_header X-NginX-Proxy true;
+                  proxy_pass http://api:5005/docs;
+                  proxy_redirect off;
+                }
+                location /admin {
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header Host $http_host;
+                  proxy_set_header X-NginX-Proxy true;
+                  proxy_pass http://api:5005/admin;
+                  proxy_redirect off;
                 }
               }
               EOF
             fi
 
-            # Ensure proper permissions for Uploads directory
-            sudo chown -R 1000:1000 Uploads
-            sudo chmod -R 755 Uploads
+            # Ensure proper permissions for uploads directory
+            sudo chown -R 1000:1000 uploads
+            sudo chmod -R 755 uploads
 
             # Login to Docker Hub
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login $REGISTRY -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
