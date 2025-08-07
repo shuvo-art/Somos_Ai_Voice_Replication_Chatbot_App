@@ -111,7 +111,7 @@ jobs:
                   retries: 3
               api:
                 container_name: api
-                image: $REGISTRY/$REPOSITORY:$IMAGE_TAG
+                image: \${REGISTRY}/\${REPOSITORY}:\${IMAGE_TAG}
                 env_file:
                   - .env
                 depends_on:
