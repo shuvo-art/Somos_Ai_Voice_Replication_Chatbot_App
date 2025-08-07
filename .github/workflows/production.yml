@@ -76,109 +76,12 @@ jobs:
             mkdir -p /root/somos-ai-voice-replication
             cd /root/somos-ai-voice-replication
 
-            # Copy docker-compose.prod.yml to the server
-            cat << EOF > docker-compose.prod.yml
-            version: '3.8'
-            services:
-              nginx:
-                container_name: nginx
-                image: nginx:stable-alpine
-                ports:
-                  - '80:80'
-                volumes:
-                  - ./nginx:/etc/nginx/conf.d/
-                depends_on:
-                  - api
-                networks:
-                  - app-network
-                restart: always
-              redis:
-                container_name: redis
-                image: redis:alpine
-                restart: always
-                environment:
-                  REDIS_URI: redis://default:password@redis:6379
-                volumes:
-                  - redis_volume_data:/var/lib/redis/data
-                ports:
-                  - 6379:6379
-                networks:
-                  - app-network
-                healthcheck:
-                  test: ["CMD", "redis-cli", "ping"]
-                  interval: 30s
-                  timeout: 10s
-                  retries: 3
-              api:
-                container_name: api
-                image: \${REGISTRY}/\${REPOSITORY}:\${IMAGE_TAG}
-                env_file:
-                  - .env
-                depends_on:
-                  - redis
-                networks:
-                  - app-network
-                command: node -r dotenv/config dist/index.js
-                volumes:
-                  - ./uploads:/app/uploads
-                  - ./.env:/app/.env
-                healthcheck:
-                  test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:5005/api/v1/health || exit 1"]
-                  interval: 30s
-                  timeout: 10s
-                  retries: 3
-                  start_period: 120s
-                restart: unless-stopped
-            volumes:
-              redis_volume_data:
-            networks:
-              app-network:
-                driver: bridge
-            EOF
-
             # Create .env file
             echo "${{ secrets.PROD_ENV }}" | base64 -d > .env
             echo "IMAGE_TAG=$IMAGE_TAG" >> .env
 
-            # Create nginx and uploads directories
-            mkdir -p nginx uploads
-            # Copy nginx configuration
-            if [ -f nginx/default.conf ]; then
-              cp nginx/default.conf nginx/
-            else
-              cat << EOF > nginx/default.conf
-              server {
-                listen 80;
-                client_max_body_size 5M;
-                location /api {
-                  proxy_set_header X-Real-IP $remote_addr;
-                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                  proxy_set_header Host $http_host;
-                  proxy_set_header X-NginX-Proxy true;
-                  proxy_pass http://api:5005;
-                  proxy_redirect off;
-                }
-                location /docs {
-                  proxy_set_header X-Real-IP $remote_addr;
-                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                  proxy_set_header Host $http_host;
-                  proxy_set_header X-NginX-Proxy true;
-                  proxy_pass http://api:5005/docs;
-                  proxy_redirect off;
-                }
-                location /admin {
-                  proxy_set_header X-Real-IP $remote_addr;
-                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                  proxy_set_header Host $http_host;
-                  proxy_set_header X-NginX-Proxy true;
-                  proxy_pass http://api:5005/admin;
-                  proxy_redirect off;
-                }
-              }
-              EOF
-            fi
-
-            # Ensure proper permissions for uploads directory
+            # Create uploads directory
+            mkdir -p uploads
             sudo chown -R 1000:1000 uploads
             sudo chmod -R 755 uploads
 
