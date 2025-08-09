@@ -78,6 +78,8 @@ jobs:
 
             # Create .env file
             echo "${{ secrets.PROD_ENV }}" | base64 -d > .env
+            echo "" >> .env
+            echo "# Docker Image Tag" >> .env
             echo "IMAGE_TAG=$IMAGE_TAG" >> .env
 
             # Create uploads directory
