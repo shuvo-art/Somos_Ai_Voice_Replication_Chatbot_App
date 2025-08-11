@@ -4,6 +4,7 @@ client/node_modules/
 
 # Environment variables
 .env
+.env.prod
 
 # Logs
 logs/
