@@ -48,12 +48,13 @@ jobs:
           REGISTRY: docker.io
           REPOSITORY: shuvo83qn/somos-ai-voice-replication
           IMAGE_TAG: ${{ env.COMMIT_SHORT_SHA }}
+          PREVIOUS_TAG: ${{ github.event.before }}
         with:
           host: ${{ secrets.GODADDY_VPS_HOST }}
           username: ${{ secrets.GODADDY_VPS_USERNAME }}
           key: ${{ secrets.GODADDY_VPS_SSH_KEY }}
           port: ${{ secrets.GODADDY_VPS_SSH_PORT }}
-          envs: REGISTRY,REPOSITORY,IMAGE_TAG
+          envs: REGISTRY,REPOSITORY,IMAGE_TAG,PREVIOUS_TAG
           script: |
             # Install Docker if not already installed
             if ! command -v docker &> /dev/null; then
@@ -91,8 +92,11 @@ jobs:
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login $REGISTRY -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
 
             # Stop and remove old containers
-            docker-compose -f docker-compose.prod.yml down
-            docker rmi $REGISTRY/$REPOSITORY:$CURRENT_TAG || true
+            docker-compose -f docker-compose.prod.yml down --remove-orphans
+            docker rmi $REGISTRY/$REPOSITORY:$PREVIOUS_TAG || true
+            
+            # Stop Apache if running
+            sudo systemctl stop httpd
 
             # Pull new image
             docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
