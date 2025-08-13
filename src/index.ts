@@ -15,9 +15,9 @@ const server = createServer(app);
 const PORT = process.env.PORT || 5001;
 
 // Configure CORS with multiple allowed origins
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-  : ['*']; // Default to '*' if ALLOWED_ORIGINS is not set
+const allowedOrigins = process.env.VITE_BASE_URL
+  ? process.env.VITE_BASE_URL.split(',').map(origin => origin.trim())
+  : ['*']; // Default to '*' if VITE_BASE_URL is not set
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -34,7 +34,7 @@ app.use(cors({
 }));
 
 // Use raw middleware only for the Stripe webhook
-app.use('/api/subscription/stripe', express.raw({ type: 'application/json' }), subscriptionWebhook);
+app.use('/api/v1/subscription/stripe', express.raw({ type: 'application/json' }), subscriptionWebhook);
 
 
 // Apply JSON parsing globally for other routes

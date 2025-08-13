@@ -85,8 +85,8 @@ router.post('/stripe-session', authenticate, async (req: Request, res: Response)
       return;
     }
 
-    if (!process.env.BASE_URL) {
-      res.status(500).json({ success: false, message: 'Server configuration error: BASE_URL is not set.' });
+    if (!process.env.VITE_BASE_URL) {
+      res.status(500).json({ success: false, message: 'Server configuration error: VITE_BASE_URL is not set.' });
       return;
     }
 
@@ -103,8 +103,8 @@ router.post('/stripe-session', authenticate, async (req: Request, res: Response)
         trial_period_days: selectedPackage.freeTrialDays || 0,
       },
       billing_address_collection: 'auto',
-      success_url: `${process.env.BASE_URL}/api/subscription/stripe-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.BASE_URL}/api/subscription/stripe-cancel`,
+      success_url: `${process.env.VITE_BASE_URL}subscription/stripe-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.VITE_BASE_URL}subscription/stripe-cancel`,
       metadata: { userId: String(userId), packId: selectedPackage.packId },
     });
 
