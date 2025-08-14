@@ -103,8 +103,8 @@ router.post('/stripe-session', authenticate, async (req: Request, res: Response)
         trial_period_days: selectedPackage.freeTrialDays || 0,
       },
       billing_address_collection: 'auto',
-      success_url: `${process.env.VITE_BASE_URL}subscription/stripe-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.VITE_BASE_URL}subscription/stripe-cancel`,
+      success_url: `${process.env.VITE_BASE_URL}/subscription/stripe-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.VITE_BASE_URL}/subscription/cancel`,
       metadata: { userId: String(userId), packId: selectedPackage.packId },
     });
 
